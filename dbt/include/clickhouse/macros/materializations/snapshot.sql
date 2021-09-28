@@ -139,6 +139,7 @@
   {%- if strategy.invalidate_hard_deletes %}
   deletes_source_data as (
     select
+      *,
       {{ strategy.unique_key }} as dbt_unique_key
     from snapshot_query
   ),
