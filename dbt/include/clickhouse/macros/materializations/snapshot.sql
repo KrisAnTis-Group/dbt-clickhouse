@@ -171,7 +171,7 @@
     create table if not exists {{ upsert }} as {{ target }};
   {% endcall %}
 
-  {% call statement('insert_unchanged_date') %}
+  {% call statement('insert_unchanged_data') %}
     insert into {{ upsert }} ({{ insert_cols_csv }})
     select {% for column in insert_cols -%}
       {{ column }} {%- if not loop.last %}, {%- endif %}
@@ -182,13 +182,33 @@
     )
   {% endcall %}
 
-  {% call statement('insert_changed_date') %}
+  {% call statement('insert_updated_data') %}
+    insert into {{ upsert }} ({{ insert_cols_csv }})
+    with updates as (
+      select
+        dbt_scd_id,
+        dbt_valid_to
+      from {{ source }}
+      where dbt_change_type IN ('update')
+    )
+    select {% for column in insert_cols %}
+      {%- if column != 'dbt_valid_to' -%}
+        target.{{ column }} as {{ column }}
+      {%- else -%}
+        updates.dbt_valid_to as dbt_valid_to
+      {%- endif %} {%- if not loop.last %}, {%- endif %}
+    {%- endfor %}
+    from {{ target }} target
+    join updates on target.dbt_scd_id = updates.dbt_scd_id;
+  {% endcall %}
+
+  {% call statement('insert_new_data') %}
     insert into {{ upsert }} ({{ insert_cols_csv }})
     select {% for column in insert_cols -%}
       {{ column }} {%- if not loop.last %}, {%- endif %}
     {%- endfor %}
     from {{ source }}
-    where {{ source }}.dbt_change_type IN ('insert', 'update', 'delete');
+    where {{ source }}.dbt_change_type IN ('insert');
   {% endcall %}
 
   {% call statement('drop_target_relation') %}
